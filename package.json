@@ -1,0 +1,77 @@
+{
+  "name": "cpp-smart-brace-wrap",
+  "displayName": "C/C++ & CUDA Smart Brace Wrap",
+  "description": "Type { after a C, C++ or CUDA control statement to wrap its existing indented body, like Sublime Text.",
+  "version": "0.1.2",
+  "publisher": "local-tools",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zlxFTH/vscode-cpp-smart-brace-wrap.git"
+  },
+  "homepage": "https://github.com/zlxFTH/vscode-cpp-smart-brace-wrap#readme",
+  "bugs": {
+    "url": "https://github.com/zlxFTH/vscode-cpp-smart-brace-wrap/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "c",
+    "cpp",
+    "cuda",
+    "braces",
+    "sublime",
+    "wrap"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:c",
+    "onLanguage:cpp",
+    "onLanguage:cuda-cpp"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "cppSmartBraceWrap.openBrace",
+        "title": "C/C++/CUDA: Insert Brace and Wrap Existing Statement"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "cppSmartBraceWrap.openBrace",
+        "key": "shift+[",
+        "when": "editorTextFocus && (editorLangId == c || editorLangId == cpp || editorLangId == cuda-cpp) && !editorReadonly && !editorHasSelection && config.cppSmartBraceWrap.enabled"
+      }
+    ],
+    "configuration": {
+      "title": "C/C++ & CUDA Smart Brace Wrap",
+      "properties": {
+        "cppSmartBraceWrap.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "在 C、C++ 或 CUDA 控制语句末尾输入 { 时，自动包住下一条已有且缩进更深的语句。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/parser.test.js",
+    "test:integration": "node test/run-integration.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0"
+  },
+  "private": true
+}
