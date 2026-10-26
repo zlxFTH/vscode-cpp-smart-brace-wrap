@@ -46,6 +46,61 @@ const cases = [
   ['body label', 'while (ok) |\n    retry: if (a) f(); else g();', 'while (ok) {\n    retry: if (a) f(); else g();|\n}']
 ];
 
+cases.push(
+  ['unfinished screenshot block',
+    'for (int i = 0; i < n; i++) |\n    if (cut[i] != 1)\n        sss\n    aaa =',
+    'for (int i = 0; i < n; i++) {\n    if (cut[i] != 1)\n        sss\n    aaa =|\n}'],
+  ['unfinished block stops before outer statement',
+    'for (int i = 0; i < n; i++) |\n    if (cut[i] != 1)\n        sss\n    aaa =\nnext();',
+    'for (int i = 0; i < n; i++) {\n    if (cut[i] != 1)\n        sss\n    aaa =|\n}\nnext();'],
+  ['inner unfinished if leaves sibling outside',
+    'for (;;)\n    if (cut[i] != 1) |\n        sss\n    aaa = 0;',
+    'for (;;)\n    if (cut[i] != 1) {\n        sss|\n    }\n    aaa = 0;'],
+  ['missing semicolon at EOF', 'while (ok) |\n    sol()', 'while (ok) {\n    sol()|\n}'],
+  ['missing semicolon before completed outer assignment',
+    'if (ok) |\n    sss\naaa = 0;', 'if (ok) {\n    sss|\n}\naaa = 0;'],
+  ['unfinished assignment', 'if (ok) |\n    aaa =\nnext();', 'if (ok) {\n    aaa =|\n}\nnext();'],
+  ['unfinished nested if else',
+    'while (ok) |\n    if (a)\n        sss\n    else\n        aaa =\nnext();',
+    'while (ok) {\n    if (a)\n        sss\n    else\n        aaa =|\n}\nnext();'],
+  ['unfinished block with a completed nested statement',
+    'for (;;) |\n    if (a)\n        sss\n    aaa = 0;\nnext();',
+    'for (;;) {\n    if (a)\n        sss\n    aaa = 0;|\n}\nnext();'],
+  ['unfinished block uses tabs',
+    '\tfor (;;) |\n\t\tif (a)\n\t\t\tsss\n\t\taaa =\n\tnext();',
+    '\tfor (;;) {\n\t\tif (a)\n\t\t\tsss\n\t\taaa =|\n\t}\n\tnext();'],
+  ['unfinished block preserves CRLF',
+    'if (ok) |\r\n    aaa =\r\nnext();', 'if (ok) {\r\n    aaa =|\r\n}\r\nnext();'],
+  ['unfinished block preserves internal blank lines',
+    'for (;;) |\n    if (a)\n        sss\n\n    aaa =\n\nnext();',
+    'for (;;) {\n    if (a)\n        sss\n\n    aaa =|\n}\n\nnext();'],
+  ['unfinished body and trailing comment',
+    'if (ok) |\n    sss // keep\nnext();', 'if (ok) {\n    sss| // keep\n}\nnext();'],
+  ['unfinished body and separate comment',
+    'if (ok) |\n    sss\n    // keep\nnext();', 'if (ok) {\n    sss|\n    // keep\n}\nnext();'],
+  ['unfinished body and multiline comment',
+    'if (ok) |\n    sss /* keep\nthis too */\nnext();', 'if (ok) {\n    sss| /* keep\nthis too */\n}\nnext();'],
+  ['unfinished body before preprocessor boundary',
+    'if (ok) |\n    sss\n#if X\nnext();\n#endif', 'if (ok) {\n    sss|\n}\n#if X\nnext();\n#endif'],
+  ['unfinished multiline call with balanced delimiters',
+    'if (ok) |\n    f(\n        1,\n        2)\nnext();', 'if (ok) {\n    f(\n        1,\n        2)|\n}\nnext();'],
+  ['complete multiline call allows dedented arguments',
+    'if (ok) |\n    f(\n1,\n2\n);\nnext();', 'if (ok) {\n    f(\n1,\n2\n);|\n}\nnext();'],
+  ['complete statements wrap the entire indentation block',
+    'for (;;) |\n    f();\n    g();', 'for (;;) {\n    f();\n    g();|\n}'],
+  ['multiple statements on one indented line',
+    'while (ok) |\n    f(); g();', 'while (ok) {\n    f(); g();|\n}'],
+  ['user test block at inner if',
+    'for (int i = 0; i < m; i++)\n    if (cut[i] != 1) |\n        as\n    aaa =\nfor (int i = 0; i < m; i++)\n    cout << ans[i] << " \\n"[i == m - 1];',
+    'for (int i = 0; i < m; i++)\n    if (cut[i] != 1) {\n        as|\n    }\n    aaa =\nfor (int i = 0; i < m; i++)\n    cout << ans[i] << " \\n"[i == m - 1];'],
+  ['user test block at outer for',
+    'for (int i = 0; i < m; i++) |\n    if (cut[i] != 1)\n        as\n    aaa =\nfor (int i = 0; i < m; i++)\n    cout << ans[i] << " \\n"[i == m - 1];',
+    'for (int i = 0; i < m; i++) {\n    if (cut[i] != 1)\n        as\n    aaa =|\n}\nfor (int i = 0; i < m; i++)\n    cout << ans[i] << " \\n"[i == m - 1];'],
+  ['inner if wraps multiple completed statements but not its sibling',
+    'for (;;)\n    if (a) |\n        f();\n        g();\n    h();',
+    'for (;;)\n    if (a) {\n        f();\n        g();|\n    }\n    h();']
+);
+
 for (const [name, before, after] of cases) {
   test(name, () => assert.equal(wrap(before), after));
 }
@@ -69,10 +124,16 @@ const declines = [
   ['incomplete call', 'while (ok) |\n    f('],
   ['incomplete literal', 'while (ok) |\n    f("oops);'],
   ['incomplete block comment', 'while (ok) |\n    f(); /* oops'],
-  ['two statements on one line', 'while (ok) |\n    f(); g();'],
   ['inline outer else', 'if (ok) |\n    f(); else g();'],
   ['mismatched delimiters', 'while (ok) |\n    f(];']
 ];
+
+declines.push(
+  ['directive in unfinished indentation block', 'for (;;) |\n    sss\n    #define X 1\n    aaa ='],
+  ['unfinished string in indentation block', 'for (;;) |\n    if (a)\n        sss\n    f("oops'],
+  ['unfinished comment after draft', 'if (ok) |\n    sss /* oops'],
+  ['outer else is not a draft body', 'if (ok) |\n    else\n        sss']
+);
 
 for (const [name, before] of declines) {
   test('preserve normal typing: ' + name, () => assert.equal(wrap(before), null));

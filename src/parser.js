@@ -1,7 +1,7 @@
 'use strict';
 
-// A bounded C++ lexer and statement-boundary reader. This deliberately declines
-// ambiguous/preprocessor-dependent code rather than guessing from indentation.
+// Indentation determines the block to wrap. The bounded lexer and statement
+// reader keep literals, comments and attached control clauses intact.
 const MAX_LENGTH = 2 * 1024 * 1024;
 const MAX_DEPTH = 128;
 const PAIRS = { '(': ')', '[': ']', '{': '}' };
@@ -178,6 +178,56 @@ function width(indent, tabSize) {
   return column;
 }
 
+// Find the draft's indentation block before looking for a terminating semicolon.
+// Otherwise a missing semicolon could make the reader consume an outer statement.
+function indentedEnd(text, bodyStart, headerWidth, tabSize, allTokens) {
+  let start = lineStart(text, bodyStart);
+  let end = start;
+  let tokenIndex = 0;
+  let coveredUntil = 0;
+  const delimiters = [];
+  while (start < text.length) {
+    const newline = text.indexOf('\n', start);
+    const nextLine = newline < 0 ? text.length : newline + 1;
+    const contentEnd = newline < 0 ? text.length : newline - (text[newline - 1] === '\r' ? 1 : 0);
+    const line = text.slice(start, contentEnd);
+    while (allTokens[tokenIndex]?.start < start) {
+      const token = allTokens[tokenIndex++];
+      if (['literal', 'comment', 'lineComment'].includes(token.kind)) {
+        coveredUntil = Math.max(coveredUntil, token.end);
+      }
+      if (token.start >= bodyStart) {
+        if (PAIRS[token.value]) delimiters.push(PAIRS[token.value]);
+        else if ([')', ']', '}'].includes(token.value)) delimiters.pop();
+      }
+    }
+    // Multiline calls, literals and comments can contain dedented lines. Their
+    // closing delimiters still belong to the statement being wrapped.
+    const continuation = coveredUntil > start || delimiters.length > 0;
+    if (line.trim()) {
+      if (!continuation && width(/^[ \t]*/.exec(line)[0], tabSize) <= headerWidth) break;
+      end = contentEnd;
+    }
+    start = nextLine;
+  }
+  return end;
+}
+
+function canWrapBlock(tokens) {
+  if (!tokens.length || ['}', 'else', 'catch', 'case', 'default'].includes(tokens[0].value)) return false;
+  const stack = [];
+  for (const token of tokens) {
+    if (token.kind === 'directive' || token.closed === false) return false;
+    if (PAIRS[token.value]) {
+      stack.push(PAIRS[token.value]);
+      if (stack.length > MAX_DEPTH) return false;
+    } else if ([')', ']', '}'].includes(token.value) && stack.pop() !== token.value) {
+      return false;
+    }
+  }
+  return stack.length === 0;
+}
+
 function headerStart(tokens, index) {
   if (['else', 'do'].includes(tokens[index]?.value)) return index;
   if (tokens[index]?.value !== ')') return null;
@@ -192,26 +242,6 @@ function headerStart(tokens, index) {
     if (tokens[i].kind === 'directive') return null;
   }
   return null;
-}
-
-// Include trailing comments inside the new block. Do not move another statement
-// or an else/catch on the same line into or out of the block.
-function trailingTriviaEnd(text, start) {
-  let i = start;
-  while (i < text.length && text[i] !== '\n') {
-    if (/[ \t\r]/.test(text[i])) { i++; continue; }
-    if (text.startsWith('//', i)) {
-      return logicalLineEnd(text, i);
-    }
-    if (text.startsWith('/*', i)) {
-      const close = text.indexOf('*/', i + 2);
-      if (close < 0) return null;
-      i = close + 2;
-      continue;
-    }
-    return null;
-  }
-  return i - (text[i - 1] === '\r' ? 1 : 0);
 }
 
 function findWrapPlan(text, offset, { tabSize = 4 } = {}) {
@@ -236,11 +266,21 @@ function findWrapPlan(text, offset, { tabSize = 4 } = {}) {
   if (width(indentation(text, bodyStart), tabSize) <= width(indent, tabSize)) return null;
   // A directive hidden among otherwise-skipped comments still prevents wrapping.
   if (tokens.slice(headerIndex, bodyIndex).some(t => t.kind === 'directive')) return null;
-  const nextIndex = statementEnd(tokens, bodyIndex);
-  if (nextIndex === null) return null;
-  const bodyEnd = tokens[nextIndex - 1].end;
-  const end = trailingTriviaEnd(text, bodyEnd);
-  if (end === null) return null;
+  const blockEnd = indentedEnd(text, bodyStart, width(indent, tabSize), tabSize, allTokens);
+  let blockTokenEnd = bodyIndex;
+  while (blockTokenEnd < tokens.length && tokens[blockTokenEnd].start < blockEnd) blockTokenEnd++;
+  const bodyTokens = tokens.slice(bodyIndex, blockTokenEnd);
+  if (!canWrapBlock(bodyTokens)) return null;
+  // Keep comments intact; never put the closing brace inside an open comment,
+  // literal or preprocessor directive, or split a token at the block boundary.
+  if (allTokens.some(t => t.start >= offset && t.start < blockEnd &&
+      (t.kind === 'directive' || t.closed === false || t.end > blockEnd))) return null;
+  // An outer else/catch sharing the body's line cannot be moved inside braces.
+  // Other statements at the same deeper indentation are intentionally included.
+  const complete = statementEnd(bodyTokens, 0);
+  if (complete !== null && ['else', 'catch'].includes(bodyTokens[complete]?.value)) return null;
+  const bodyEnd = bodyTokens[bodyTokens.length - 1].end;
+  const end = blockEnd;
   const eol = text.includes('\r\n') ? '\r\n' : '\n';
   const opening = /[ \t]/.test(text[offset - 1]) ? '{' : ' {';
   const replacement = opening + text.slice(offset, end) + eol + indent + '}';

@@ -40,6 +40,20 @@ async function run() {
   await check('C while and single undo', 'c', 'while (t--) |\n    sol();', 'while (t--) {\n    sol();|\n}', { undo: true });
   await check('C compound literal', 'c', 'if (ok) |\n    f((struct Point){.x = 1, .y = 2});', 'if (ok) {\n    f((struct Point){.x = 1, .y = 2});|\n}');
   await check('CUDA kernel launch and single undo', 'cuda-cpp', 'while (ok) |\n    kernel<<<blocks, threads>>>(data, count);\nnext();', 'while (ok) {\n    kernel<<<blocks, threads>>>(data, count);|\n}\nnext();', { undo: true });
+  const userBlock = 'for (int i = 0; i < m; i++)\n    if (cut[i] != 1)\n        as\n    aaa =\nfor (int i = 0; i < m; i++)\n    cout << ans[i] << " \\n"[i == m - 1];';
+  for (const language of ['c', 'cpp', 'cuda-cpp']) {
+    await check(language + ' user block at inner if', language,
+      userBlock.replace('if (cut[i] != 1)', 'if (cut[i] != 1) |'),
+      userBlock.replace('if (cut[i] != 1)\n        as', 'if (cut[i] != 1) {\n        as|\n    }'),
+      { undo: true });
+    await check(language + ' user block at outer for', language,
+      userBlock.replace('for (int i = 0; i < m; i++)', 'for (int i = 0; i < m; i++) |'),
+      userBlock.replace('for (int i = 0; i < m; i++)', 'for (int i = 0; i < m; i++) {').replace('aaa =', 'aaa =|\n}'),
+      { undo: true });
+  }
+  await check('all completed statements at deeper indentation', 'cpp',
+    'for (;;)\n    if (a) |\n        f();\n        g();\n    h();',
+    'for (;;)\n    if (a) {\n        f();\n        g();|\n    }\n    h();', { undo: true });
   await check('JavaScript fallback', 'javascript', 'while (t--) |\n    sol();', 'while (t--) {|}\n    sol();');
   const configuration = vscode.workspace.getConfiguration('cppSmartBraceWrap');
   await configuration.update('enabled', false, vscode.ConfigurationTarget.Global);

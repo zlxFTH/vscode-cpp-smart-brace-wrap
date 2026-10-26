@@ -1,6 +1,6 @@
 # C/C++ & CUDA Smart Brace Wrap
 
-在 C、C++ 或 CUDA 控制语句末尾按 **`{`**，自动用大括号包住下一条已有语句。
+在 C、C++ 或 CUDA 控制语句末尾按 **`{`**，自动用大括号包住后面连续的一段缩进更深的代码。支持嵌套、多条语句和还没写完的代码。
 
 [下载最新安装包](https://github.com/zlxFTH/vscode-cpp-smart-brace-wrap/releases/latest) · [更新记录](CHANGELOG.md)
 
@@ -16,7 +16,7 @@
 也可以在命令行安装（替换为实际下载路径）：
 
 ```sh
-code --install-extension cpp-smart-brace-wrap-0.1.2.vsix
+code --install-extension cpp-smart-brace-wrap-0.1.3.vsix
 ```
 
 Windows、macOS、Linux 使用同一个 VSIX 文件。更新时下载新版本并重复安装即可。这里通过 GitHub Releases 分发，尚未发布到 VS Code 扩展市场。
@@ -42,15 +42,40 @@ while (t--) {
 
 `|` 表示光标，不属于实际代码。一次撤销即可恢复。
 
+包裹范围按当前控制语句的缩进确定，不要求代码已经补上分号。例如在内层 `if` 后按 `{`：
+
+```cpp
+for (int i = 0; i < m; i++)
+    if (cut[i] != 1) |
+        as
+    aaa =
+for (int i = 0; i < m; i++)
+    cout << ans[i] << " \n"[i == m - 1];
+```
+
+得到：
+
+```cpp
+for (int i = 0; i < m; i++)
+    if (cut[i] != 1) {
+        as|
+    }
+    aaa =
+for (int i = 0; i < m; i++)
+    cout << ans[i] << " \n"[i == m - 1];
+```
+
+如果在第一个 `for` 后按 `{`，则 `if` 和 `aaa =` 都会被包进去，第二个 `for` 留在外面。同一缩进块中即使有多条完整语句，也会一起包裹。
+
 ## 生效条件
 
 - 文件语言模式为 **C**（`c`）、**C++**（`cpp`）或 **CUDA C++**（`cuda-cpp`）。支持 `.c`、`.cpp`、`.cu`、`.cuh`，以及使用这些语言模式的头文件。
 - 使用标准 `{` 按键（美式键盘为 `Shift+[`）。
 - 单光标、没有选区，光标后到当前行末只有空白。
 - 光标位于 `if (...)`、`if constexpr (...)`、`for (...)`、`while (...)`、`else` 或 `do` 后面。
-- 下一条语句已存在，位于后续行，并且比控制语句的缩进更深。
+- 后续行已有缩进更深的代码。遇到退回当前层或外层缩进的代码就停止；块内空行和注释会保留。
 
-插件会找到完整语句的边界，支持跨行调用、嵌套控制语句、`if/else`、`do/while`、lambda、原始字符串与注释。已有缩进与行尾格式会保留，末尾行内注释也会留在新代码块内。字符串里的 `$`、反斜杠和大括号会原样保留。
+插件使用缩进确定整个代码块的范围，跨行调用、括号分组、原始字符串和注释不会在中间被切断。已有缩进与行尾格式会保留，末尾行内注释也会留在新代码块内。光标停在块内最后一段代码末尾，字符串里的 `$`、反斜杠和大括号会原样保留。
 
 其他场景沿用 VS Code 原本的 `{` 输入行为，包括选区包裹、普通空代码块、其他语言及多光标。插件不改动全局输入命令。
 
@@ -64,9 +89,9 @@ while (t--) {
 
 ## 边界
 
-这是轻量的词法和语句结构解析器，不会调用编译器，也不会执行或上传代码。它不展开宏；跨预处理指令、语句不完整、已有代码块、同一行还有其他语句等场景会保留原输入行为。超过 2 MiB 的文件也会保留原输入行为。
+这是轻量的词法和缩进解析器，不会调用编译器，也不会执行或上传代码。缺少分号、未完成的赋值等情况仍可包裹；引号、注释或括号未闭合、括号不匹配、跨预处理指令、已有代码块等情况会保留原输入行为。它不展开宏，超过 2 MiB 的文件也会保留原输入行为。
 
-安装了 Vim 等接管 `{` 按键的扩展时，可能需要在 VS Code 的键盘快捷方式中调整 `C/C++/CUDA: Insert Brace and Wrap Existing Statement` 的按键优先级。
+安装了 Vim 等接管 `{` 按键的扩展时，可能需要在 VS Code 的键盘快捷方式中调整 `C/C++/CUDA: Insert Brace and Wrap Indented Block` 的按键优先级。
 
 ## 本地开发
 
@@ -93,10 +118,10 @@ npm run package
 
 ```sh
 git add .
-git commit -m "Release 0.1.3"
+git commit -m "Release 0.1.4"
 git push origin main
-git tag v0.1.3
-git push origin v0.1.3
+git tag v0.1.4
+git push origin v0.1.4
 ```
 
 GitHub Actions 会在 Windows、macOS 和 Linux 上运行解析器测试与 VS Code 集成测试；全部通过后打包 VSIX。推送版本标签还会自动创建 Release 并附上安装包，不需要配置额外的发布密钥。

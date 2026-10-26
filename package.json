@@ -1,8 +1,8 @@
 {
   "name": "cpp-smart-brace-wrap",
   "displayName": "C/C++ & CUDA Smart Brace Wrap",
-  "description": "Type { after a C, C++ or CUDA control statement to wrap its existing indented body, like Sublime Text.",
-  "version": "0.1.2",
+  "description": "Type { after a C, C++ or CUDA control statement to wrap the following indented block, even while it is unfinished.",
+  "version": "0.1.3",
   "publisher": "local-tools",
   "license": "MIT",
   "repository": {
@@ -43,7 +43,7 @@
     "commands": [
       {
         "command": "cppSmartBraceWrap.openBrace",
-        "title": "C/C++/CUDA: Insert Brace and Wrap Existing Statement"
+        "title": "C/C++/CUDA: Insert Brace and Wrap Indented Block"
       }
     ],
     "keybindings": [
@@ -59,7 +59,7 @@
         "cppSmartBraceWrap.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "在 C、C++ 或 CUDA 控制语句末尾输入 { 时，自动包住下一条已有且缩进更深的语句。"
+          "description": "在 C、C++ 或 CUDA 控制语句末尾输入 { 时，自动包住后面连续的一段缩进更深的代码，包括尚未写完的语句。"
         }
       }
     }
